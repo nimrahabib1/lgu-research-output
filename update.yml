@@ -1,0 +1,35 @@
+name: Refresh LGU publication data
+
+on:
+  schedule:
+    - cron: "17 21 * * 0"   # every Sunday 21:17 UTC = Monday 02:17 PKT
+  workflow_dispatch: {}      # "Run workflow" button for an on-demand refresh
+  push:
+    paths: ["data/**", "harvest.py"]   # re-run when ORIC edits the journal/faculty lists
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Harvest publications
+        env:
+          OPENALEX_MAILTO: ${{ vars.OPENALEX_MAILTO }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          SCOPUS_API_KEY: ${{ secrets.SCOPUS_API_KEY }}
+          SCOPUS_INSTTOKEN: ${{ secrets.SCOPUS_INSTTOKEN }}
+          SCOPUS_AFID: ${{ vars.SCOPUS_AFID }}
+        run: python harvest.py
+      - name: Commit updated data
+        run: |
+          git config user.name "lgu-oric-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/data.json
+          git diff --cached --quiet || git commit -m "Data refresh $(date -u +%F)"
+          git push
